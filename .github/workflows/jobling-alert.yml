@@ -27,4 +27,4 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          SITES_JSON: ${{ secrets.SITES_JSON }}
+          SITES_JSON: ${{ secrets.SOURCES_JSON }}
