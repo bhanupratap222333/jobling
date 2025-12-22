@@ -8,7 +8,6 @@ import json
 from email.mime.text import MIMEText
 from datetime import datetime
 from urllib.parse import urljoin
-from collections import defaultdict
 
 # ===============================
 # CONFIG (FROM ENV)
@@ -25,18 +24,17 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 if not EMAIL_FROM or not EMAIL_TO or not EMAIL_PASSWORD:
     raise Exception("❌ EMAIL env variables missing")
 
-# ---- Sites Config ----
-SITES_JSON = os.getenv("SITES_JSON")
+# ---- Sources Config ----
+SOURCES_JSON = os.getenv("SOURCES_JSON")
 
-if not SITES_JSON:
-    raise Exception("❌ SITES_JSON env variable missing")
+if not SOURCES_JSON:
+    raise Exception("❌ SOURCES_JSON env variable missing")
 
 try:
-    SITES = json.loads(SITES_JSON)
+    SOURCES = json.loads(SOURCES_JSON)
 except Exception:
-    raise Exception("❌ Invalid SITES_JSON format")
+    raise Exception("❌ Invalid SOURCES_JSON format")
 
-MAX_PER_CATEGORY = 10
 HASH_FILE = "seen_signal.txt"
 
 HEADERS = {
@@ -44,22 +42,12 @@ HEADERS = {
 }
 
 # ===============================
-# HELPERS
+# HELPERS (SAME LOGIC)
 # ===============================
 
-def get_hash(text):
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
-
-STOP_WORDS = [
-    "apply", "online", "download", "notification",
-    "latest", "exam", "post", "declared", "out"
-]
-
-def normalize_title(title):
-    t = title.lower()
-    t = re.sub(r'[^a-z0-9 ]', ' ', t)
-    words = [w for w in t.split() if w not in STOP_WORDS]
-    return " ".join(words[:6])
+def clean_title(t):
+    t = re.sub(r'\s+', ' ', t)
+    return t.strip()
 
 def detect_category(title):
     t = title.lower()
@@ -70,6 +58,10 @@ def detect_category(title):
     if "admit" in t or "hall ticket" in t:
         return "Admit Card"
     return "Latest Job"
+
+def make_hash(site, title, category):
+    key = f"{site}_{title}_{category}"
+    return hashlib.md5(key.encode("utf-8")).hexdigest()
 
 def send_email(items):
     body = "Hello Bhanu,\n\nNew government updates found:\n\n"
@@ -98,7 +90,7 @@ def send_email(items):
     server.quit()
 
 # ===============================
-# LOAD OLD HASHES
+# LOAD OLD HASHES (DUPLICATE SAFE)
 # ===============================
 
 seen = set()
@@ -107,47 +99,44 @@ if os.path.exists(HASH_FILE):
         seen = set(f.read().splitlines())
 
 # ===============================
-# SCRAPE
+# SCRAPING (PAGES WISE – SAME AS BEFORE)
 # ===============================
 
 new_items = []
-category_count = defaultdict(int)
 
-for site in SITES:
-    try:
-        r = requests.get(site["url"], headers=HEADERS, timeout=20)
-        soup = BeautifulSoup(r.text, "html.parser")
-    except Exception:
-        continue
-
-    for a in soup.find_all("a", href=True):
-        title = a.get_text(strip=True)
-        if not title or len(title) < 12:
+for source in SOURCES:
+    for page in source["pages"]:
+        try:
+            r = requests.get(page, headers=HEADERS, timeout=20)
+            soup = BeautifulSoup(r.text, "html.parser")
+        except Exception:
             continue
 
-        category = detect_category(title)
-        key = normalize_title(title) + "_" + category
-        h = get_hash(key)
+        for a in soup.find_all("a", href=True):
+            title = clean_title(a.get_text())
+            if not title or len(title) < 15:
+                continue
 
-        if h in seen:
-            continue
+            link = urljoin(page, a["href"])
+            category = detect_category(title)
+            h = make_hash(source["site"], title, category)
 
-        if category_count[category] >= MAX_PER_CATEGORY:
-            continue
+            # ✅ DUPLICATE CHECK
+            if h in seen:
+                continue
 
-        seen.add(h)
-        category_count[category] += 1
+            seen.add(h)
 
-        new_items.append({
-            "title": title,
-            "category": category,
-            "site": site["name"],
-            "date": datetime.now().strftime("%d-%m-%Y"),
-            "link": urljoin(site["url"], a["href"])
-        })
+            new_items.append({
+                "title": title,
+                "category": category,
+                "site": source["site"],
+                "date": datetime.now().strftime("%d-%m-%Y"),
+                "link": link
+            })
 
 # ===============================
-# SEND EMAIL ALERT
+# SEND EMAIL
 # ===============================
 
 if new_items:
