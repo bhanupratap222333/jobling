@@ -22,12 +22,13 @@ SITES = [
 MAX_PER_CATEGORY = 10
 HASH_FILE = "seen_signal.txt"
 
-# ===== EMAIL CONFIG =====
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_FROM = "jobling.in@gmail.com"     # sender
-EMAIL_TO = "jobling.in@gmail.com"       # receiver (same bhi chalega)
-EMAIL_PASSWORD = "BhanuP906000@"
+
+EMAIL_FROM = os.getenv("EMAIL_FROM")
+EMAIL_TO = os.getenv("EMAIL_TO")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
 
 # ===============================
 # HELPERS
@@ -145,3 +146,4 @@ with open(HASH_FILE, "w") as f:
         f.write(h + "\n")
 
 print("✅ Done | New items:", len(new_items))
+
