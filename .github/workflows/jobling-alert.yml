@@ -3,7 +3,7 @@ name: Jobling Auto Alert
 on:
   schedule:
     - cron: "0 */2 * * *"   # every 2 hours
-  workflow_dispatch:       # manual run button
+  workflow_dispatch:
 
 jobs:
   run-alert:
@@ -27,4 +27,4 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          SITES_JSON: ${{ secrets.SOURCES_JSON }}
+          SOURCES_JSON: ${{ secrets.SOURCES_JSON }}
