@@ -1,7 +1,7 @@
 name: Jobling Auto Alert
 
 permissions:
-  contents: write   # 🔥 allow git push
+  contents: write
 
 on:
   schedule:
@@ -13,19 +13,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      # 🔥 STEP 1: FULL checkout (no stale repo)
+      - name: Checkout repository (full)
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: true
 
+      # 🔥 STEP 2: FORCE latest repo state
+      - name: Force pull latest seen_signal.txt
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      # STEP 3: Python setup
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
+      # STEP 4: Install deps
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # STEP 5: Run your existing code
       - name: Run Jobling Alert Bot
         run: python main.py
         env:
@@ -34,10 +45,11 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           SOURCES_JSON: ${{ secrets.SOURCES_JSON }}
 
-      - name: Save seen hashes (prevent duplicates)
+      # 🔥 STEP 6: Save updated hashes
+      - name: Save seen hashes
         run: |
-          git config user.name "jobling-bot"
-          git config user.email "bot@jobling.in"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add seen_signal.txt
-          git commit -m "update seen hashes" || echo "No changes"
+          git commit -m "update seen_signal [skip ci]" || echo "No changes"
           git push
