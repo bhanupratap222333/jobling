@@ -42,7 +42,7 @@ HEADERS = {
 }
 
 # ===============================
-# HELPERS (SAME LOGIC)
+# HELPERS
 # ===============================
 
 def clean_title(t):
@@ -59,9 +59,12 @@ def detect_category(title):
         return "Admit Card"
     return "Latest Job"
 
-def make_hash(site, title, category):
-    key = f"{site}_{title}_{category}"
-    return hashlib.md5(key.encode("utf-8")).hexdigest()
+# 🔥 NEW: page content signature
+def page_signature(soup):
+    text = soup.get_text(separator=" ", strip=True)
+    text = re.sub(r'\s+', ' ', text)
+    # first 2000 chars enough to detect updates
+    return hashlib.md5(text[:2000].encode("utf-8")).hexdigest()
 
 def send_email(items):
     body = "Hello Bhanu,\n\nNew government updates found:\n\n"
@@ -90,7 +93,7 @@ def send_email(items):
     server.quit()
 
 # ===============================
-# LOAD OLD HASHES (DUPLICATE SAFE)
+# LOAD OLD HASHES (PERSISTED)
 # ===============================
 
 seen = set()
@@ -99,7 +102,7 @@ if os.path.exists(HASH_FILE):
         seen = set(f.read().splitlines())
 
 # ===============================
-# SCRAPING (PAGES WISE – SAME AS BEFORE)
+# SCRAPING (PAGES WISE)
 # ===============================
 
 new_items = []
@@ -112,6 +115,9 @@ for source in SOURCES:
         except Exception:
             continue
 
+        # 🔥 generate page-level signature once
+        signature = page_signature(soup)
+
         for a in soup.find_all("a", href=True):
             title = clean_title(a.get_text())
             if not title or len(title) < 15:
@@ -119,7 +125,11 @@ for source in SOURCES:
 
             link = urljoin(page, a["href"])
             category = detect_category(title)
-            h = make_hash(source["site"], title, category)
+
+            # 🔥 NEW HASH (title same but content change = new alert)
+            h = hashlib.md5(
+                f"{source['site']}|{title}|{link}|{signature}".encode("utf-8")
+            ).hexdigest()
 
             # ✅ DUPLICATE CHECK
             if h in seen:
@@ -146,7 +156,7 @@ else:
     print("😴 No new updates")
 
 # ===============================
-# SAVE HASHES
+# SAVE HASHES (COMMIT BY GITHUB ACTION)
 # ===============================
 
 with open(HASH_FILE, "w", encoding="utf-8") as f:
